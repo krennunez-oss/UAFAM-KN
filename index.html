@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Explorador Galáctico: Misión Vía Láctea</title>
+  <style>
+    /* ==========================================================================
+       VARIABLES Y ESTILOS BASE SCI-FI / HUD FUTURISTA
+       ========================================================================== */
+    :root {
+      --bg-deep: #040711;
+      --panel-bg: rgba(8, 16, 36, 0.82);
+      --panel-border: rgba(0, 243, 255, 0.45);
+      --cyan: #00f3ff;
+      --cyan-glow: rgba(0, 243, 255, 0.35);
+      --purple: #b537f2;
+      --purple-glow: rgba(181, 55, 242, 0.35);
+      --orange: #ff8c00;
+      --orange-glow: rgba(255, 140, 0, 0.35);
+      --green: #00ff88;
+      --red: #ff3355;
+      --text-main: #e6f4ff;
+      --text-dim: #8bb4d9;
+      --font-hud: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: 'Consolas', 'Courier New', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-deep);
+      color: var(--text-main);
+      font-family: var(--font-hud);
+    }
+
+    /* Lienzo principal de simulación (Estrellas + Galaxia + Sistema Solar) */
+    #spaceCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+      cursor: grab;
+    }
+    #spaceCanvas:active {
+      cursor: grabbing;
+    }
+
+    /* Efecto sutil de líneas de escaneo CRT / cabina espacial */
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 243, 255, 0.025) 50%
+      );
+      background-size: 100% 4px;
+    }
+
+    /* ==========================================================================
+       CABECERA HUD SUPERIOR (NAVEGACIÓN Y PROGRESO DEL JUGADOR)
+       ========================================================================== */
+    #topHud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: linear-gradient(180deg, rgba(4, 9, 22, 0.95) 0%, rgba(4, 9, 22, 0.6) 100%);
+      border-bottom: 1px solid var(--panel-border);
+      backdrop-filter: blur(8px);
+      gap: 10px;
+    }
+
+    .hud-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .radar-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.55; }
+    }
+
+    .hud-title {
+      font-weight: 800;
+      font-size: 1rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    /* Pestañas de Modos de Juego */
+    .nav-modes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-hud {
+      background: rgba(0, 243, 255, 0.08);
+      border: 1px solid rgba(0, 243, 255, 0.35);
+      color: var(--text-main);
+      padding: 7px 13px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+    }
+
+    .btn-hud:hover {
+      background: rgba(0, 243, 255, 0.22);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-hud.active {
+      background: rgba(0, 243, 255, 0.28);
+      border-color: var(--cyan);
+      color: #fff;
+      box-shadow: 0 0 15px var(--cyan-glow), inset 0 0 8px var(--cyan-glow);
+    }
+
+    .btn-purple {
+      border-color: rgba(181, 55, 242, 0.5);
+      background: rgba(181, 55, 242, 0.12);
+    }
+    .btn-purple:hover, .btn-purple.active {
+      border-color: var(--purple);
+      background: rgba(181, 55, 242, 0.3);
+      box-shadow: 0 0 15px var(--purple-glow);
+    }
+
+    .btn-orange {
+      border-color: rgba(255, 140, 0, 0.55);
+      background: rgba(255, 140, 0, 0.14);
+    }
+    .btn-orange:hover, .btn-orange.active {
+      border-color: var(--orange);
+      background: rgba(255, 140, 0, 0.32);
+      box-shadow: 0 0 15px var(--orange-glow);
+    }
+
+    /* Panel de Rango y XP */
+    .player-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(181, 55, 242, 0.12);
+      border: 1px solid rgba(181, 55, 242, 0.45);
+      padding: 5px 12px;
+      border-radius: 10px;
+    }
+
+    .rank-info {
+      display: flex;
+      flex-direction: column;
+      text-align: right;
+    }
+
+    .rank-label {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .rank-name {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #e0aaff;
+      text-shadow: 0 0 6px var(--purple-glow);
+    }
+
+    .xp-pill {
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--cyan);
+      color: var(--cyan);
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.85rem;
+    }
+
+    /* ==========================================================================
+       PANTALLA DE INICIO (OVERLAY ÉPICO)
+       ========================================================================== */
+    #startScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: radial-gradient(circle at center, rgba(12, 22, 52, 0.82) 0%, rgba(3, 6, 16, 0.96) 100%);
+      backdrop-filter: blur(6px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      transition: opacity 0.45s ease, visibility 0.45s ease;
+    }
+
+    #startScreen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .start-card {
+      max-width: 720px;
+      width: 100%;
+      background: var(--panel-bg);
+      border: 2px solid var(--cyan);
+      border-radius: 18px;
+      padding: 32px 26px;
+      text-align: center;
+      box-shadow: 0 0 40px rgba(0, 243, 255, 0.25), inset 0 0 25px rgba(181, 55, 242, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .start-badge {
+      display: inline-block;
+      background: rgba(255, 140, 0, 0.18);
+      border: 1px solid var(--orange);
+      color: var(--orange);
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+    }
+
+    .start-card h1 {
+      font-size: clamp(1.7rem, 4vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: 2px;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, #ffffff, var(--cyan), #d580ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .start-card p {
+      color: var(--text-dim);
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 580px;
+      margin: 0 auto 24px auto;
+    }
+
+    .start-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 26px;
+      text-align: left;
+    }
+
+    .feature-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(0, 243, 255, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .feature-box strong {
+      display: block;
+      color: var(--cyan);
+      font-size: 0.88rem;
+      margin-bottom: 4px;
+    }
+
+    .feature-box span {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.4;
+      display: block;
+    }
+
+    .btn-launch {
+      background: linear-gradient(135deg, #00c6ff 0%, #0072ff 50%, #9d00ff 100%);
+      border: none;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      padding: 15px 34px;
+      border-radius: 12px;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: 0 0 25px rgba(0, 198, 255, 0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-launch:hover {
+      transform: scale(1.04);
+      box-shadow: 0 0 35px rgba(0, 243, 255, 0.8);
+    }
+
+    /* ==========================================================================
+       PANELES LATERALES Y CONTROLES INFERIORES DE SIMULACIÓN
+       ========================================================================== */
+    .hud-panel {
+      position: fixed;
+      z-index: 15;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 0 15px rgba(0, 243, 255, 0.08);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* Panel de Información de la Vía Láctea (Vista 1) */
+    #galaxyInfoPanel {
+      top: 76px;
+      right: 16px;
+      width: 340px;
+      max-width: calc(100vw - 32px);
+      padding: 18px;
+    }
+
+    .panel-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--orange);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .panel-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--cyan);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-desc {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--text-main);
+      margin-bottom: 14px;
+    }
+
+    .stat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 7px 10px;
+      border-radius: 8px;
+      border-left: 3px solid var(--purple);
+      font-size: 0.82rem;
+    }
+
+    .stat-row span:first-child {
+      color: var(--text-dim);
+    }
+
+    .stat-row strong {
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+
+    /* Ficha de Escaneo Planetario (Vista 2 - Derecha) */
+    #planetSheet {
+      top: 76px;
+      right: 16px;
+      width: 370px;
+      max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 165px);
+      overflow-y: auto;
+      padding: 18px;
+      display: none;
+    }
+
+    #planetSheet.visible {
+      display: block;
+      animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(25px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .planet-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .planet-orb-preview {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: inset -10px -10px 18px rgba(0,0,0,0.75), 0 0 15px rgba(255,255,255,0.2);
+    }
+
+    .planet-type-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(0, 243, 255, 0.15);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 243, 255, 0.4);
+      margin-top: 4px;
+    }
+
+    .data-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .data-cell {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .data-cell label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .data-cell span {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+
+    .fun-fact-box {
+      background: linear-gradient(135deg, rgba(181, 55, 242, 0.16), rgba(0, 243, 255, 0.1));
+      border: 1px solid rgba(181, 55, 242, 0.45);
+      border-radius: 10px;
+      padding: 11px;
+      font-size: 0.83rem;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .fun-fact-box strong {
+      color: #e0aaff;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .btn-scan {
+      width: 100%;
+      padding: 11px;
+      border-radius: 10px;
+      border: 1px solid var(--green);
+      background: rgba(0, 255, 136, 0.16);
+      color: var(--green);
+      font-weight: 800;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+
+    .btn-scan:hover:not(:disabled) {
+      background: rgba(0, 255, 136, 0.3);
+      box-shadow: 0 0 18px rgba(0, 255, 136, 0.45);
+    }
+
+    .btn-scan:disabled {
+      border-color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-dim);
+      cursor: default;
+    }
+
+    /* Barra Inferior de Controles del Sistema Solar (Vista 2) */
+    #solarControls {
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100vw - 28px);
+      max-width: 980px;
+      padding: 10px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #solarControls.visible {
+      display: flex;
+    }
+
+    .sim-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .planet-selector-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+
+    .planet-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text-main);
+      padding: 6px 11px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .planet-chip:hover {
+      border-color: var(--cyan);
+      background: rgba(0, 243, 255, 0.15);
+    }
+
+    .planet-chip.selected {
+      border-color: var(--cyan);
+      background: rgba(0, 243, 255, 0.28);
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    .planet-chip.scanned::after {
+      content: '✓';
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .chip-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* ==========================================================================
+       VISTA 3: MISIONES DE RECONOCIMIENTO (QUIZ) Y COMPARADOR PLANETARIO
+       ========================================================================== */
+    #missionsModal {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100vw - 28px);
+      max-width: 920px;
+      max-height: calc(100vh - 90px);
+      overflow-y: auto;
+      z-index: 25;
+      padding: 22px;
+      display: none;
+    }
+
+    #missionsModal.visible {
+      display: block;
+    }
+
+    .sub-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* Quiz Radar */
+    .quiz-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(0, 243, 255, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .quiz-progress {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+
+    .quiz-question {
+      font-size: 1.12rem;
+      font-weight: 700;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      color: #fff;
+    }
+
+    .quiz-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .quiz-opt {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(0, 243, 255, 0.3);
+      color: var(--text-main);
+      padding: 13px 15px;
+      border-radius: 10px;
+      text-align: left;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quiz-opt:hover:not(:disabled) {
+      background: rgba(0, 243, 255, 0.18);
+      border-color: var(--cyan);
+    }
+
+    .quiz-opt.correct {
+      background: rgba(0, 255, 136, 0.25);
+      border-color: var(--green);
+      color: #fff;
+    }
+
+    .quiz-opt.wrong {
+      background: rgba(255, 51, 85, 0.25);
+      border-color: var(--red);
+      color: #fff;
+    }
+
+    .quiz-feedback {
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      display: none;
+      margin-bottom: 12px;
+    }
+
+    /* Comparador y Calculadora de Peso */
+    .comparator-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .select-sci, .input-sci {
+      width: 100%;
+      background: rgba(4, 12, 28, 0.9);
+      border: 1px solid var(--cyan);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: var(--font-hud);
+    }
+
+    .compare-stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 640px) {
+      .compare-stage {
+        grid-template-columns: 1fr;
+      }
+      #galaxyInfoPanel, #planetSheet {
+        top: auto;
+        bottom: 135px;
+        max-height: 45vh;
+        overflow-y: auto;
+      }
+      #galaxyInfoPanel {
+        bottom: 16px;
+      }
+    }
+
+    .compare-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(181, 55, 242, 0.4);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .scale-visualizer {
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+    }
+
+    .weight-box {
+      background: linear-gradient(90deg, rgba(255, 140, 0, 0.15), rgba(181, 55, 242, 0.15));
+      border: 1px solid var(--orange);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    /* Notificación flotante tipo Logro / Mensaje de Cabina */
+    #toastBanner {
+      position: fixed;
+      top: 76px;
+      left: 50%;
+      transform: translate(-50%, -20px);
+      z-index: 60;
+      background: rgba(6, 20, 44, 0.95);
+      border: 1px solid var(--green);
+      box-shadow: 0 0 25px rgba(0, 255, 136, 0.4);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      text-align: center;
+    }
+
+    #toastBanner.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* Indicador de ayuda en pantalla */
+    .canvas-hint {
+      position: fixed;
+      top: 74px;
+      left: 16px;
+      z-index: 8;
+      background: rgba(4, 10, 24, 0.72);
+      border: 1px solid rgba(0, 243, 255, 0.25);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 0.76rem;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+    @media (max-width: 768px) {
+      .canvas-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Lienzo de Renderizado Espacial -->
+  <canvas id="spaceCanvas"></canvas>
+  <div class="scanlines"></div>
+
+  <!-- Banner de Notificaciones / Medallas -->
+  <div id="toastBanner"></div>
+
+  <!-- ========================================================================
+       PANTALLA DE INICIO
+       ======================================================================== -->
+  <section id="startScreen">
+    <div class="start-card">
+      <div class="start-badge">SIMULADOR EDUCATIVO • CIENCIAS DE LA TIERRA Y EL UNIVERSO</div>
+      <h1>EXPLORADOR GALÁCTICO:<br>MISIÓN VÍA LÁCTEA</h1>
+      <p>
+        Toma el mando de la nave de reconocimiento <em>Astra-9</em>. Navega por los brazos espirales de nuestra galaxia, analiza las órbitas de los 8 planetas del Sistema Solar y supera desafíos científicos para ascender a <strong>Comandante Galáctico</strong>.
+      </p>
+      <div class="start-grid">
+        <div class="feature-box">
+          <strong>🌌 Escala Galáctica</strong>
+          <span>Explora la Vía Láctea, su bulbo central (Sagitario A*) y nuestro hogar en el Brazo de Orión.</span>
+        </div>
+        <div class="feature-box">
+          <strong>🪐 Órbitas en Tiempo Real</strong>
+          <span>Controla el tiempo, inspecciona atmósferas, gravedades, lunas y escanea cada planeta.</span>
+        </div>
+        <div class="feature-box">
+          <strong>🎯 Misiones y Laboratorio</strong>
+          <span>Pon a prueba tus conocimientos en el radar y calcula cuánto pesarías en otros mundos.</span>
+        </div>
+      </div>
+      <button class="btn-launch" id="btnStartMission">🚀 Iniciar Misión Espacial</button>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       HUD SUPERIOR (NAVEGACIÓN Y RANGO)
+       ======================================================================== -->
+  <header id="topHud">
+    <div class="hud-brand">
+      <div class="radar-dot"></div>
+      <span class="hud-title">ASTRA-9 // HUD</span>
+    </div>
+
+    <nav class="nav-modes">
+      <button class="btn-hud active" data-mode="galaxy" id="navGalaxy">🌌 Vía Láctea</button>
+      <button class="btn-hud" data-mode="solar" id="navSolar">☀️ Sistema Solar</button>
+      <button class="btn-hud btn-purple" data-mode="missions" id="navMissions">🎯 Misiones &amp; Lab</button>
+      <button class="btn-hud" id="btnToggleAudio" title="Activar/Silenciar audio">🔊 Audio</button>
+    </nav>
+
+    <div class="player-stats">
+      <div class="rank-info">
+        <span class="rank-label">Rango Estelar</span>
+        <span class="rank-name" id="rankDisplay">Cadete Espacial</span>
+      </div>
+      <div class="xp-pill" id="xpDisplay">0 XP</div>
+    </div>
+  </header>
+
+  <div class="canvas-hint" id="canvasHint">
+    🖱️ Arrastra para mover • Rueda/Pellizco para Zoom • Clic en nodos para explorar
+  </div>
+
+  <!-- ========================================================================
+       VISTA 1: PANEL DE INFORMACIÓN DE LA VÍA LÁCTEA
+       ======================================================================== -->
+  <aside class="hud-panel" id="galaxyInfoPanel">
+    <div class="panel-tag" id="galNodeTag">ESTRUCTURA GALÁCTICA</div>
+    <div class="panel-title">
+      <span id="galNodeTitle">La Vía Láctea</span>
+    </div>
+    <p class="panel-desc" id="galNodeDesc">
+      Es nuestra galaxia hogar: una enorme <strong>galaxia espiral barrada</strong> que contiene entre 100,000 y 400,000 millones de estrellas, además de gas, polvo cósmico y materia oscura. Haz clic en los puntos brillantes del mapa para analizar sus regiones.
+    </p>
+    <div class="stat-list" id="galNodeStats">
+      <div class="stat-row"><span>Diámetro estimado:</span><strong>~100,000 años luz</strong></div>
+      <div class="stat-row"><span>Tipo morfológico:</span><strong>Espiral Barrada (SBbc)</strong></div>
+      <div class="stat-row"><span>Año Galáctico (Sol):</span><strong>~225 millones de años</strong></div>
+    </div>
+    <button class="btn-hud btn-orange" style="width: 100%; justify-content: center; padding: 11px;" id="btnZoomToSolar">
+      🔭 Hacer Zoom al Sistema Solar
+    </button>
+  </aside>
+
+  <!-- ========================================================================
+       VISTA 2: FICHA DE ESCANEO PLANETARIO
+       ======================================================================== -->
+  <aside class="hud-panel" id="planetSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span class="panel-tag">TELEMETRÍA PLANETARIA</span>
+      <button class="btn-hud" style="padding:3px 8px; font-size:0.75rem;" id="btnCloseSheet">✕</button>
+    </div>
+
+    <div class="planet-header">
+      <div class="planet-orb-preview" id="sheetOrb"></div>
+      <div>
+        <h2 id="sheetName" style="font-size:1.35rem; color:#fff;">Tierra</h2>
+        <span class="planet-type-badge" id="sheetType">Planeta Rocoso / Terrestre</span>
+      </div>
+    </div>
+
+    <p class="panel-desc" id="sheetDesc"></p>
+
+    <div class="data-grid">
+      <div class="data-cell"><label>Diámetro</label><span id="sheetDiameter">-</span></div>
+      <div class="data-cell"><label>Distancia al Sol</label><span id="sheetDistance">-</span></div>
+      <div class="data-cell"><label>Duración del Día</label><span id="sheetRotation">-</span></div>
+      <div class="data-cell"><label>Duración del Año</label><span id="sheetOrbit">-</span></div>
+      <div class="data-cell"><label>Temp. Media</label><span id="sheetTemp">-</span></div>
+      <div class="data-cell"><label>Gravedad</label><span id="sheetGravity">-</span></div>
+      <div class="data-cell"><label>Lunas conocidas</label><span id="sheetMoons">-</span></div>
+      <div class="data-cell"><label>Atmósfera clave</label><span id="sheetAtm">-</span></div>
+    </div>
+
+    <div class="fun-fact-box">
+      <strong>💡 Dato Científico Destacado:</strong>
+      <span id="sheetFact"></span>
+    </div>
+
+    <button class="btn-scan" id="btnScanPlanet">📡 Escanear Planeta (+50 XP)</button>
+  </aside>
+
+  <!-- ========================================================================
+       VISTA 2: CONTROLES INFERIORES DE ÓRBITAS Y SELECTOR DE PLANETAS
+       ======================================================================== -->
+  <div class="hud-panel" id="solarControls">
+    <div class="sim-toolbar">
+      <div class="toolbar-group">
+        <button class="btn-hud" id="btnPlayPause">⏸ Pausar</button>
+        <button class="btn-hud active" data-speed="1">1x</button>
+        <button class="btn-hud" data-speed="2.5">2.5x</button>
+        <button class="btn-hud" data-speed="6">6x</button>
+      </div>
+      <div class="toolbar-group">
+        <button class="btn-hud active" id="btnToggleOrbits">⭕ Órbitas</button>
+        <button class="btn-hud active" id="btnToggleLabels">🏷️ Nombres</button>
+        <button class="btn-hud" id="btnResetCamera">🎯 Centrar Sol</button>
+      </div>
+    </div>
+    <div class="planet-selector-bar" id="planetChipBar"></div>
+  </div>
+
+  <!-- ========================================================================
+       VISTA 3: MODAL DE MISIONES DE RECONOCIMIENTO Y COMPARADOR PLANETARIO
+       ======================================================================== -->
+  <section class="hud-panel" id="missionsModal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div>
+        <div class="panel-tag">CENTRO DE ENTRENAMIENTO Y ANÁLISIS</div>
+        <h2 style="color:var(--cyan); font-size:1.3rem;">Misiones Científicas y Laboratorio</h2>
+      </div>
+      <button class="btn-hud" id="btnCloseMissions">Volver al Espacio ✕</button>
+    </div>
+
+    <div class="sub-tabs">
+      <button class="btn-hud active" id="tabQuizBtn">📡 Misión de Reconocimiento (Quiz +XP)</button>
+      <button class="btn-hud btn-purple" id="tabCompBtn">⚖️ Comparador &amp; Tu Peso Espacial</button>
+      <button class="btn-hud btn-orange" id="tabBadgesBtn">🏅 Bitácora y Medallas (<span id="scannedCountBadge">0</span>/9)</button>
+    </div>
+
+    <!-- Sub-vista A: Quiz Interactivo -->
+    <div id="quizSection" class="quiz-box">
+      <div class="quiz-progress">
+        <span id="quizCounter">PREGUNTA 1 DE 8</span>
+        <span id="quizScore">ACIERTOS: 0</span>
+      </div>
+      <div class="quiz-question" id="quizQuestionText">Cargando transmisión...</div>
+      <div class="quiz-options" id="quizOptionsGrid"></div>
+      <div class="quiz-feedback" id="quizFeedback"></div>
+      <button class="btn-hud btn-orange" id="btnNextQuestion" style="display:none;">Siguiente Señal ➔</button>
+    </div>
+
+    <!-- Sub-vista B: Comparador Planetario y Calculadora de Peso -->
+    <div id="comparatorSection" style="display:none;">
+      <div class="comparator-controls">
+        <div>
+          <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">Cuerpo Celeste A:</label>
+          <select id="compSelectA" class="select-sci"></select>
+        </div>
+        <div>
+          <label style="font-size:0.78rem; color:var(--text-dim); display:block; margin-bottom:4px;">Cuerpo Celeste B:</label>
+          <select id="compSelectB" class="select-sci"></select>
+        </div>
+      </div>
+
+      <div class="compare-stage">
+        <div class="compare-card" id="compCardA"></div>
+        <div class="compare-card" id="compCardB"></div>
+      </div>
+
+      <div class="weight-box">
+        <div style="flex:1; min-width:220px;">
+          <strong style="color:var(--orange); font-size:0.95rem; display:block; margin-bottom:4px;">
+            🧑‍🚀 Calculadora de Gravedad: ¿Cuánto pesarías en otros mundos?
+          </strong>
+          <span style="font-size:0.82rem; color:var(--text-dim);">
+            Tu <strong>masa</strong> (kg) es constante en todo el universo, pero tu <strong>peso</strong> (N o kg-fuerza) cambia según la gravedad de cada planeta.
+          </span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <label for="userMassInput" style="font-size:0.85rem; font-weight:700;">Tu masa (kg):</label>
+          <input type="number" id="userMassInput" class="input-sci" style="width:95px;" value="55" min="1" max="500">
+        </div>
+        <div id="weightResults" style="width:100%; display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- Sub-vista C: Bitácora y Medallas -->
+    <div id="badgesSection" style="display:none;">
+      <p style="font-size:0.88rem; color:var(--text-dim); margin-bottom:14px;">
+        Escanea todos los astros del Sistema Solar y completa misiones para desbloquear insignias científicas.
+      </p>
+      <div id="badgesGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px;"></div>
+    </div>
+  </section>
+
+  <script>
+    /* ==========================================================================
+       1. MOTOR DE AUDIO SINTETIZADO (WEB AUDIO API - SIN ARCHIVOS EXTERNOS)
+       ========================================================================== */
+    const SoundFX = (() => {
+      let ctx = null;
+      let muted = false;
+
+      function init() {
+        if (!ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) ctx = new AudioContext();
+        }
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+      }
+
+      function playTone(freq, type, duration, vol = 0.12, slideTo = null) {
+        if (muted) return;
+        init();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        if (slideTo) {
+          osc.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + duration);
+        }
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      }
+
+      return {
+        click: () => playTone(680, 'sine', 0.08, 0.1, 920),
+        warp: () => playTone(140, 'sawtooth', 0.45, 0.1, 560),
+        scan: () => {
+          playTone(520, 'triangle', 0.12, 0.12);
+          setTimeout(() => playTone(780, 'triangle', 0.14, 0.12), 110);
+          setTimeout(() => playTone(1040, 'sine', 0.25, 0.14), 220);
+        },
+        success: () => {
+          playTone(587.33, 'sine', 0.14, 0.13);
+          setTimeout(() => playTone(880, 'sine', 0.26, 0.15), 130);
+        },
+        error: () => {
+          playTone(240, 'sawtooth', 0.18, 0.12, 140);
+        },
+        toggleMute: () => {
+          muted = !muted;
+          return muted;
+        }
+      };
+    })();
+
+    /* ==========================================================================
+       2. BASE DE DATOS EDUCATIVA (VÍA LÁCTEA, SISTEMA SOLAR Y CUESTIONARIO)
+       ========================================================================== */
+    const GALAXY_NODES = [
+      {
+        id: 'bulge',
+        name: 'Bulbo Central y Sagitario A*',
+        tag: 'NÚCLEO GALÁCTICO',
+        nx: 0, ny: 0,
+        color: '#ffaa33',
+        desc: 'El corazón denso y brillante de la Vía Láctea, compuesto principalmente por estrellas viejas de tonos rojizos y amarillos. En su centro exacto habita Sagitario A*, un agujero negro supermasivo con una masa equivalente a 4 millones de soles.',
+        stats: [
+          { label: 'Objeto central:', val: 'Agujero Negro Sagitario A*' },
+          { label: 'Masa de Sagitario A*:', val: '4.1 millones de M☉' },
+          { label: 'Distancia a la Tierra:', val: '~26,000 años luz' }
+        ]
+      },
+      {
+        id: 'orion',
+        name: 'Brazo de Orión (Nuestro Hogar)',
+        tag: 'BRAZO ESPIRAL MENOR',
+        nx: -0.22, ny: 0.44,
+        color: '#00f3ff',
+        desc: 'También llamado Espolón de Orión, es un brazo espiral menor situado entre los brazos de Sagitario y Perseo. Aquí se encuentra nuestro Sistema Solar, orbitando el centro galáctico a unos 828,000 km/h.',
+        stats: [
+          { label: 'Ubicación del Sol:', val: 'Brazo de Orión' },
+          { label: 'Velocidad orbital solar:', val: '~230 km/s (828,000 km/h)' },
+          { label: 'Nebulosas cercanas:', val: 'Nebulosa de Orión (M42)' }
+        ]
+      },
+      {
+        id: 'perseus',
+        name: 'Brazo de Perseo',
+        tag: 'BRAZO ESPIRAL PRINCIPAL',
+        nx: -0.58, ny: -0.32,
+        color: '#b537f2',
+        desc: 'Uno de los dos brazos espirales mayores de la Vía Láctea. Es una región rica en gas hidrógeno y viveros estelares donde nacen estrellas jóvenes, calientes y muy luminosas de color azul.',
+        stats: [
+          { label: 'Clasificación:', val: 'Brazo espiral mayor' },
+          { label: 'Población estelar:', val: 'Estrellas jóvenes azules' },
+          { label: 'Distancia desde el Sol:', val: '~6,400 años luz' }
+        ]
+      },
+      {
+        id: 'scutum',
+        name: 'Brazo Escudo-Centauro',
+        tag: 'BRAZO ESPIRAL PRINCIPAL',
+        nx: 0.46, ny: -0.25,
+        color: '#00ff88',
+        desc: 'El otro gran brazo espiral mayor de nuestra galaxia, que parte directamente desde un extremo de la barra central de estrellas. Contiene cúmulos estelares masivos y regiones de intensa formación de estrellas.',
+        stats: [
+          { label: 'Origen estructural:', val: 'Extremo de la barra central' },
+          { label: 'Diámetro galáctico:', val: '100,000 - 120,000 años luz' },
+          { label: 'Estrellas en la galaxia:', val: '100 - 400 mil millones' }
+        ]
+      },
+      {
+        id: 'halo',
+        name: 'Halo Galáctico y Cúmulos Globulares',
+        tag: 'ENVOLTURA ESFÉRICA',
+        nx: 0.68, ny: 0.56,
+        color: '#7aa2ff',
+        desc: 'Una inmensa región esférica que rodea el disco de la Vía Láctea. Contiene cúmulos globulares con algunas de las estrellas más antiguas del universo (más de 12,000 millones de años) y gran parte de la materia oscura.',
+        stats: [
+          { label: 'Edad de cúmulos:', val: '> 12,000 millones de años' },
+          { label: 'Componente invisible:', val: 'Materia Oscura' },
+          { label: 'Galaxias vecinas:', val: 'Andrómeda (M31) y Nubes Magallanes' }
+        ]
+      }
+    ];
+
+    const CELESTIAL_BODIES = [
+      {
+        id: 'sol',
+        name: 'El Sol',
+        type: 'Estrella Enana Amarilla (G2V)',
+        color: '#ffbb00',
+        color2: '#ff5500',
+        radiusVis: 24,
+        orbitRadius: 0,
+        orbitSpeed: 0,
+        realDiameterKm: 1392700,
+        diameter: '1,392,700 km',
+        distance: '0 UA (Centro)',
+        rotation: '25.4 días (ecuador)',
+        orbit: '225M años (Galaxia)',
+        temp: '5,500 °C (superficie)',
+        gravityVal: 27.9,
+        gravity: '274 m/s² (27.9 g)',
+        moons: '8 planetas orbitando',
+        atm: '73% H, 25% He',
+        desc: 'Es la estrella en el centro de nuestro Sistema Solar y representa el 99.86% de toda su masa. Genera energía mediante fusión nuclear, transformando hidrógeno en helio en su núcleo a 15 millones de grados.',
+        fact: 'La luz del Sol tarda aproximadamente 8 minutos y 20 segundos en viajar los 150 millones de kilómetros que lo separan de la Tierra.'
+      },
+      {
+        id: 'mercurio',
+        name: 'Mercurio',
+        type: 'Planeta Rocoso / Terrestre',
+        color: '#b5b0a8',
+        color2: '#6e6a63',
+        radiusVis: 5.5,
+        orbitRadius: 56,
+        orbitSpeed: 4.15,
+        realDiameterKm: 4879,
+        diameter: '4,879 km',
+        distance: '0.39 UA (58M km)',
+        rotation: '58.6 días terrestres',
+        orbit: '88 días terrestres',
+        temp: '167 °C (-180 a 430 °C)',
+        gravityVal: 0.38,
+        gravity: '3.7 m/s² (0.38 g)',
+        moons: '0 lunas',
+        atm: 'Exosfera tenue (O, Na, H)',
+        desc: 'El planeta más pequeño del Sistema Solar y el más cercano al Sol. Su superficie está cubierta de cráteres de impacto similares a los de nuestra Luna debido a que carece de una atmósfera densa que lo proteja.',
+        fact: 'Aunque es el más cercano al Sol, no es el más caliente: sin atmósfera que retenga el calor, sus noches caen hasta -180 °C.'
+      },
+      {
+        id: 'venus',
+        name: 'Venus',
+        type: 'Planeta Rocoso / Terrestre',
+        color: '#f2c97d',
+        color2: '#c98a36',
+        radiusVis: 8.5,
+        orbitRadius: 84,
+        orbitSpeed: 1.62,
+        realDiameterKm: 12104,
+        diameter: '12,104 km',
+        distance: '0.72 UA (108M km)',
+        rotation: '243 días (retrógrada)',
+        orbit: '224.7 días terrestres',
+        temp: '464 °C (el más caliente)',
+        gravityVal: 0.90,
+        gravity: '8.87 m/s² (0.90 g)',
+        moons: '0 lunas',
+        atm: '96.5% CO₂, nubes H₂SO₄',
+        desc: 'Similar en tamaño y masa a la Tierra, pero con una atmósfera tóxica y extremadamente densa de dióxido de carbono que provoca un efecto invernadero desbocado.',
+        fact: 'Gira sobre su eje en sentido contrario al de la mayoría de los planetas (rotación retrógrada) y su día dura más que su año.'
+      },
+      {
+        id: 'tierra',
+        name: 'Tierra',
+        type: 'Planeta Rocoso / Terrestre',
+        color: '#2b95ff',
+        color2: '#1f9e55',
+        radiusVis: 9,
+        orbitRadius: 116,
+        orbitSpeed: 1.0,
+        realDiameterKm: 12742,
+        diameter: '12,742 km',
+        distance: '1.00 UA (150M km)',
+        rotation: '23 h 56 min',
+        orbit: '365.25 días',
+        temp: '15 °C (media global)',
+        gravityVal: 1.0,
+        gravity: '9.81 m/s² (1.00 g)',
+        moons: '1 (La Luna)',
+        atm: '78% N₂, 21% O₂, 1% otros',
+        desc: 'Nuestro hogar y el único mundo conocido con agua líquida estable en su superficie (71%) y vida. Posee un campo magnético protector generado por su núcleo metálico que desvía el viento solar.',
+        fact: 'La inclinación de su eje de rotación (23.5°) es la responsable directa de las estaciones del año (primavera, verano, otoño e invierno).'
+      },
+      {
+        id: 'marte',
+        name: 'Marte',
+        type: 'Planeta Rocoso / Terrestre',
+        color: '#e85d35',
+        color2: '#992d14',
+        radiusVis: 7,
+        orbitRadius: 148,
+        orbitSpeed: 0.53,
+        realDiameterKm: 6779,
+        diameter: '6,779 km',
+        distance: '1.52 UA (228M km)',
+        rotation: '24 h 37 min',
+        orbit: '687 días terrestres',
+        temp: '-65 °C',
+        gravityVal: 0.38,
+        gravity: '3.71 m/s² (0.38 g)',
+        moons: '2 (Fobos y Deimos)',
+        atm: '95% CO₂, 2.6% N₂ (tenue)',
+        desc: 'Conocido como el "Planeta Rojo" debido al óxido de hierro (herrumbre) en su suelo. Tuvo ríos y lagos de agua líquida hace miles de millones de años y hoy conserva casquetes polares de hielo.',
+        fact: 'Alberga el Monte Olimpo, el volcán más grande del Sistema Solar, con 21.9 km de altura (casi tres veces el Monte Everest).'
+      },
+      {
+        id: 'jupiter',
+        name: 'Júpiter',
+        type: 'Gigante Gaseoso',
+        color: '#e0a972',
+        color2: '#9e5c34',
+        radiusVis: 18,
+        orbitRadius: 205,
+        orbitSpeed: 0.084,
+        realDiameterKm: 139820,
+        diameter: '139,820 km',
+        distance: '5.20 UA (778M km)',
+        rotation: '9 h 55 min (el más rápido)',
+        orbit: '11.86 años terrestres',
+        temp: '-110 °C',
+        gravityVal: 2.53,
+        gravity: '24.79 m/s² (2.53 g)',
+        moons: '95 (Ío, Europa, Ganímedes...)',
+        atm: '90% Hidrógeno, 10% Helio',
+        desc: 'El planeta más grande del Sistema Solar: cabrían más de 1,300 Tierras en su interior. Su enorme gravedad actúa como un escudo cósmico que desvía o atrapa numerosos cometas y asteroides.',
+        fact: 'La Gran Mancha Roja es una tormenta anticiclónica gigante más grande que toda la Tierra que lleva activa más de 300 años.'
+      },
+      {
+        id: 'saturno',
+        name: 'Saturno',
+        type: 'Gigante Gaseoso',
+        color: '#f0d48c',
+        color2: '#b89446',
+        radiusVis: 15,
+        hasRings: true,
+        orbitRadius: 268,
+        orbitSpeed: 0.034,
+        realDiameterKm: 116460,
+        diameter: '116,460 km',
+        distance: '9.58 UA (1,430M km)',
+        rotation: '10 h 33 min',
+        orbit: '29.45 años terrestres',
+        temp: '-140 °C',
+        gravityVal: 1.07,
+        gravity: '10.44 m/s² (1.07 g)',
+        moons: '146 (Titán, Encélado...)',
+        atm: '96% Hidrógeno, 3% Helio',
+        desc: 'Famoso por su espectacular sistema de anillos compuestos por miles de millones de fragmentos de hielo y roca, desde granos de polvo hasta bloques del tamaño de una casa.',
+        fact: 'Es el único planeta del Sistema Solar cuya densidad media (0.687 g/cm³) es menor que la del agua: ¡si hubiera un océano gigante, flotaría!'
+      },
+      {
+        id: 'urano',
+        name: 'Urano',
+        type: 'Gigante Helado',
+        color: '#7de3f4',
+        color2: '#3ba1b8',
+        radiusVis: 11.5,
+        orbitRadius: 325,
+        orbitSpeed: 0.012,
+        realDiameterKm: 50724,
+        diameter: '50,724 km',
+        distance: '19.2 UA (2,870M km)',
+        rotation: '17 h 14 min (retrógrada)',
+        orbit: '84 años terrestres',
+        temp: '-195 °C',
+        gravityVal: 0.89,
+        gravity: '8.69 m/s² (0.89 g)',
+        moons: '28 (Titania, Oberón, Miranda)',
+        atm: 'H₂, He y 2.3% Metano (CH₄)',
+        desc: 'Un gigante helado cuyo manto está compuesto por fluidos densos de agua, amoníaco y metano. El gas metano de su atmósfera absorbe la luz roja y refleja el tono azul verdoso característico.',
+        fact: 'Su eje de rotación está inclinado 98 grados, por lo que prácticamente "rueda" acostado sobre su órbita alrededor del Sol.'
+      },
+      {
+        id: 'neptuno',
+        name: 'Neptuno',
+        type: 'Gigante Helado',
+        color: '#3b66ff',
+        color2: '#1d3699',
+        radiusVis: 11,
+        orbitRadius: 375,
+        orbitSpeed: 0.006,
+        realDiameterKm: 49244,
+        diameter: '49,244 km',
+        distance: '30.1 UA (4,500M km)',
+        rotation: '16 h 06 min',
+        orbit: '164.8 años terrestres',
+        temp: '-200 °C',
+        gravityVal: 1.14,
+        gravity: '11.15 m/s² (1.14 g)',
+        moons: '16 (Tritón)',
+        atm: 'H₂, He y Metano (CH₄)',
+        desc: 'El planeta más lejano del Sistema Solar y el primero descubierto gracias a predicciones matemáticas antes de ser observado directamente con un telescopio en 1846.',
+        fact: 'Posee los vientos supersónicos más veloces de todo el Sistema Solar, alcanzando ráfagas de hasta 2,100 km/h.'
+      }
+    ];
+
+    const QUIZ_QUESTIONS = [
+      {
+        q: '¿Qué tipo de galaxia es la Vía Láctea y en qué brazo se ubica nuestro Sistema Solar?',
+        opts: [
+          'Galaxia espiral barrada; en el Brazo de Orión',
+          'Galaxia elíptica gigante; en el Bulbo Central',
+          'Galaxia irregular; en el Brazo de Perseo',
+          'Galaxia lenticular; en el Halo Galáctico'
+        ],
+        ans: 0,
+        exp: '¡Exacto! La Vía Láctea es una galaxia espiral barrada y el Sol se localiza en el Brazo (o Espolón) de Orión.'
+      },
+      {
+        q: '¿Cuál es el planeta más caliente del Sistema Solar debido a un efecto invernadero extremo provocado por su atmósfera de CO₂?',
+        opts: ['Mercurio', 'Venus', 'Marte', 'Júpiter'],
+        ans: 1,
+        exp: 'Correcto. Aunque Mercurio está más cerca del Sol, la densa atmósfera de dióxido de carbono de Venus atrapa el calor alcanzando 464 °C.'
+      },
+      {
+        q: '¿Qué objeto astronómico se encuentra en el centro exacto de la Vía Láctea?',
+        opts: [
+          'Una estrella supergigante azul',
+          'El cúmulo globular de Orión',
+          'Un agujero negro supermasivo llamado Sagitario A*',
+          'La galaxia de Andrómeda'
+        ],
+        ans: 2,
+        exp: '¡Muy bien! Sagitario A* es el agujero negro supermasivo central con una masa de unos 4 millones de soles.'
+      },
+      {
+        q: '¿Qué característica física hace único a Saturno entre todos los planetas del Sistema Solar?',
+        opts: [
+          'Es el único planeta con lunas',
+          'Su densidad media es menor que la del agua líquida',
+          'Tiene una superficie sólida de hielo y hierro',
+          'Es el planeta más cercano al cinturón de Kuiper'
+        ],
+        ans: 1,
+        exp: '¡Así es! Saturno tiene una densidad de 0.687 g/cm³, menor que la del agua (1 g/cm³).'
+      },
+      {
+        q: '¿Cuál de los siguientes grupos está formado exclusivamente por planetas rocosos (telúricos)?',
+        opts: [
+          'Júpiter, Saturno, Urano y Neptuno',
+          'Mercurio, Venus, Tierra y Marte',
+          'Tierra, Marte, Júpiter y Saturno',
+          'Mercurio, Venus, Urano y Neptuno'
+        ],
+        ans: 1,
+        exp: 'Correcto. Los cuatro planetas interiores (Mercurio, Venus, Tierra y Marte) tienen superficies sólidas y rocosas.'
+      },
+      {
+        q: '¿Por qué Urano y Neptuno presentan una tonalidad azulada o azul verdosa?',
+        opts: [
+          'Porque están cubiertos de océanos de agua líquida',
+          'Por el reflejo de los anillos de Saturno',
+          'Porque el gas metano (CH₄) de sus atmósferas absorbe la luz roja',
+          'Porque carecen completamente de atmósfera'
+        ],
+        ans: 2,
+        exp: '¡Excelente! El metano atmosférico absorbe las longitudes de onda rojas de la luz solar y refleja las azules.'
+      },
+      {
+        q: '¿Qué fenómeno es responsable de las estaciones del año en la Tierra?',
+        opts: [
+          'La distancia variable entre la Tierra y la Luna',
+          'La inclinación del eje de rotación terrestre (23.5°)',
+          'Las manchas solares cada 11 años',
+          'La velocidad de rotación de Júpiter'
+        ],
+        ans: 1,
+        exp: 'Correcto. La inclinación axial de 23.5° hace que cada hemisferio reciba distinta inclinación de rayos solares durante el año.'
+      },
+      {
+        q: '¿Qué es una Unidad Astronómica (UA)?',
+        opts: [
+          'La distancia que recorre la luz en un año',
+          'El diámetro de la Vía Láctea',
+          'La distancia media entre la Tierra y el Sol (~150 millones de km)',
+          'La masa total de Júpiter'
+        ],
+        ans: 2,
+        exp: '¡Exacto! 1 UA equivale a unos 150 millones de kilómetros y sirve para medir distancias dentro del Sistema Solar.'
+      }
+    ];
+
+    /* ==========================================================================
+       3. ESTADO DEL JUEGO Y PROGRESO DEL ESTUDIANTE
+       ========================================================================== */
+    const state = {
+      mode: 'galaxy', // 'galaxy' | 'solar' | 'missions'
+      xp: 0,
+      scannedIds: new Set(),
+      quizAnswered: new Set(),
+      quizScore: 0,
+      currentQuizIdx: 0,
+      selectedGalaxyNode: GALAXY_NODES[1], // Brazo de Orión por defecto
+      selectedBodyId: null,
+      simRunning: true,
+      simSpeed: 1,
+      showOrbits: true,
+      showLabels: true,
+      simTime: 120, // Tiempo inicial para buena distribución visual
+      camera: {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        targetX: 0,
+        targetY: 0,
+        targetZoom: 1
+      },
+      planetPositions: {} // Se actualiza cada frame para detección de clics
+    };
+
+    const RANKS = [
+      { minXp: 0, title: 'Cadete Espacial' },
+      { minXp: 150, title: 'Piloto Orbital' },
+      { minXp: 350, title: 'Explorador Estelar' },
+      { minXp: 600, title: 'Comandante Galáctico' }
+    ];
+
+    function addXP(amount, reason) {
+      const prevRank = getRankTitle(state.xp);
+      state.xp += amount;
+      const newRank = getRankTitle(state.xp);
+      document.getElementById('xpDisplay').textContent = `${state.xp} XP`;
+      document.getElementById('rankDisplay').textContent = newRank;
+
+      if (prevRank !== newRank) {
+        showToast(`🎖️ ¡ASCENSO DE RANGO! Ahora eres ${newRank} (+${amount} XP)`);
+      } else {
+        showToast(`✨ +${amount} XP — ${reason}`);
+      }
+      renderBadges();
+    }
+
+    function getRankTitle(xp) {
+      let current = RANKS[0].title;
+      for (const r of RANKS) {
+        if (xp >= r.minXp) current = r.title;
+      }
+      return current;
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toastBanner');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+    }
+
+    /* ==========================================================================
+       4. MOTOR GRÁFICO CANVAS 2D (ESTRELLAS, VÍA LÁCTEA Y SISTEMA SOLAR)
+       ========================================================================== */
+    const canvas = document.getElementById('spaceCanvas');
+    const ctx = canvas.getContext('2d');
+    let width = 0, height = 0;
+
+    // Estrellas de fondo y partículas de brazos espirales
+    const bgStars = [];
+    const galaxyParticles = [];
+
+    function initProceduralSpace() {
+      bgStars.length = 0;
+      for (let i = 0; i < 320; i++) {
+        bgStars.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: Math.random() * 1.9 + 0.4,
+          alpha: Math.random() * 0.8 + 0.2,
+          twinkleSpeed: Math.random() * 0.03 + 0.005,
+          phase: Math.random() * Math.PI * 2,
+          hue: Math.random() > 0.8 ? (Math.random() > 0.5 ? '#a6e3ff' : '#ffd8a8') : '#ffffff'
+        });
+      }
+
+      // Generar 2,400 estrellas formando una galaxia espiral barrada de 4 brazos
+      galaxyParticles.length = 0;
+      const numArms = 4;
+      for (let i = 0; i < 2400; i++) {
+        const arm = i % numArms;
+        const dist = Math.pow(Math.random(), 0.72); // Más densidad hacia el núcleo
+        const baseAngle = (arm * Math.PI * 2) / numArms;
+        const spiralTwist = dist * 3.8;
+        const scatter = (Math.random() - 0.5) * (0.45 + dist * 0.55);
+        const angle = baseAngle + spiralTwist + scatter;
+
+        // Color según distancia al centro (núcleo dorado, brazos cian/púrpura/blanco)
+        let color = '#ffffff';
+        if (dist < 0.22) color = '#ffcc66';
+        else if (Math.random() < 0.35) color = '#66e0ff';
+        else if (Math.random() < 0.22) color = '#d580ff';
+
+        galaxyParticles.push({
+          dist,
+          angle,
+          radiusScale: (Math.random() - 0.5) * 0.06,
+          size: Math.random() * 2.1 + 0.5,
+          alpha: (1 - dist * 0.65) * (Math.random() * 0.6 + 0.3),
+          color
+        });
+      }
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    // Renderizado del fondo estelar profundo
+    function drawStarfield(time) {
+      const grad = ctx.createRadialGradient(width * 0.5, height * 0.5, 40, width * 0.5, height * 0.5, Math.max(width, height) * 0.85);
+      grad.addColorStop(0, '#0b142e');
+      grad.addColorStop(0.55, '#050917');
+      grad.addColorStop(1, '#02040a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      for (const s of bgStars) {
+        const twinkle = 0.65 + 0.35 * Math.sin(time * s.twinkleSpeed + s.phase);
+        ctx.globalAlpha = s.alpha * twinkle;
+        ctx.fillStyle = s.hue;
+        ctx.beginPath();
+        ctx.arc(s.x * width, s.y * height, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // VISTA 1: Renderizado de la Vía Láctea
+    let galaxyRotation = 0;
+    function drawMilkyWay(dt) {
+      galaxyRotation += dt * 0.025;
+      const cx = width * 0.45 + state.camera.x;
+      const cy = height * 0.52 + state.camera.y;
+      const maxR = Math.min(width, height) * 0.42 * state.camera.zoom;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Resplandor nebuloso galáctico
+      const haloGrad = ctx.createRadialGradient(0, 0, maxR * 0.05, 0, 0, maxR * 1.15);
+      haloGrad.addColorStop(0, 'rgba(255, 200, 110, 0.32)');
+      haloGrad.addColorStop(0.3, 'rgba(120, 70, 220, 0.14)');
+      haloGrad.addColorStop(0.65, 'rgba(0, 190, 255, 0.06)');
+      haloGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, maxR * 1.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rotación suave de la galaxia (perspectiva ligeramente inclinada 2.5D)
+      ctx.save();
+      ctx.scale(1, 0.78);
+      ctx.rotate(galaxyRotation);
+
+      // Barra central característica de galaxia espiral barrada
+      ctx.save();
+      ctx.rotate(0.4);
+      const barGrad = ctx.createLinearGradient(-maxR * 0.26, 0, maxR * 0.26, 0);
+      barGrad.addColorStop(0, 'rgba(255, 190, 90, 0)');
+      barGrad.addColorStop(0.5, 'rgba(255, 220, 140, 0.45)');
+      barGrad.addColorStop(1, 'rgba(255, 190, 90, 0)');
+      ctx.fillStyle = barGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, maxR * 0.26, maxR * 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Estrellas de los brazos espirales
+      for (const p of galaxyParticles) {
+        const r = (p.dist + p.radiusScale) * maxR;
+        const px = Math.cos(p.angle) * r;
+        const py = Math.sin(p.angle) * r;
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(px, py, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      // Bulbo central brillante
+      const coreGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, maxR * 0.16);
+      coreGrad.addColorStop(0, '#ffffff');
+      coreGrad.addColorStop(0.35, '#ffdd88');
+      coreGrad.addColorStop(0.8, 'rgba(255, 150, 50, 0.25)');
+      coreGrad.addColorStop(1, 'rgba(255, 150, 50, 0)');
+      ctx.fillStyle = coreGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, maxR * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore(); // Fin de escala inclinada
+
+      // Dibujar nodos interactivos de regiones galácticas
+      for (const node of GALAXY_NODES) {
+        // Rotar las coordenadas del nodo junto con la galaxia (excepto el centro)
+        const baseR = Math.hypot(node.nx, node.ny) * maxR;
+        const baseA = Math.atan2(node.ny, node.nx) + (node.id === 'bulge' ? 0 : galaxyRotation);
+        const sx = Math.cos(baseA) * baseR;
+        const sy = Math.sin(baseA) * baseR * 0.78;
+
+        node._screenX = cx + sx;
+        node._screenY = cy + sy;
+
+        const isSelected = state.selectedGalaxyNode && state.selectedGalaxyNode.id === node.id;
+        const pulseR = isSelected ? 15 + Math.sin(performance.now() * 0.006) * 3 : 10;
+
+        // Halo del marcador
+        ctx.beginPath();
+        ctx.arc(sx, sy, pulseR, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? 'rgba(0, 243, 255, 0.28)' : 'rgba(255, 255, 255, 0.12)';
+        ctx.fill();
+        ctx.lineWidth = isSelected ? 2.2 : 1.3;
+        ctx.strokeStyle = node.color;
+        ctx.stroke();
+
+        // Punto central
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Etiqueta del nodo
+        ctx.font = isSelected ? 'bold 12px Segoe UI, sans-serif' : '600 11px Segoe UI, sans-serif';
+        ctx.fillStyle = isSelected ? '#00f3ff' : '#e6f4ff';
+        ctx.textAlign = 'left';
+        ctx.fillText(node.name.split(' (')[0], sx + 14, sy + 4);
+      }
+
+      ctx.restore();
+    }
+
+    // VISTA 2: Renderizado del Sistema Solar Interactivo
+    function drawSolarSystem(dt) {
+      if (state.simRunning) {
+        state.simTime += dt * 0.45 * state.simSpeed;
+      }
+
+      // Si hay un planeta seleccionado, seguirlo suavemente con la cámara
+      if (state.selectedBodyId && state.selectedBodyId !== 'sol') {
+        const body = CELESTIAL_BODIES.find(b => b.id === state.selectedBodyId);
+        if (body) {
+          const angle = state.simTime * body.orbitSpeed;
+          const bx = Math.cos(angle) * body.orbitRadius;
+          const by = Math.sin(angle) * body.orbitRadius * 0.85; // Perspectiva 2.5D
+          state.camera.targetX = -bx * state.camera.zoom;
+          state.camera.targetY = -by * state.camera.zoom;
+        }
+      }
+
+      // Interpolación suave de cámara
+      state.camera.x += (state.camera.targetX - state.camera.x) * 0.1;
+      state.camera.y += (state.camera.targetY - state.camera.y) * 0.1;
+      state.camera.zoom += (state.camera.targetZoom - state.camera.zoom) * 0.1;
+
+      const cx = width * 0.5 + state.camera.x;
+      const cy = height * 0.48 + state.camera.y;
+      const z = state.camera.zoom;
+
+      // Cinturón de Asteroides sutil entre Marte y Júpiter
+      if (state.showOrbits) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(1, 0.85);
+        ctx.beginPath();
+        ctx.arc(0, 0, 176 * z, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(180, 200, 230, 0.12)';
+        ctx.lineWidth = 8 * z;
+        ctx.setLineDash([2, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
+      // Dibujar Órbitas y Planetas
+      for (const body of CELESTIAL_BODIES) {
+        const rOrbit = body.orbitRadius * z;
+
+        // Órbita elíptica 2.5D
+        if (body.orbitRadius > 0 && state.showOrbits) {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.scale(1, 0.85);
+          ctx.beginPath();
+          ctx.arc(0, 0, rOrbit, 0, Math.PI * 2);
+          ctx.strokeStyle = state.selectedBodyId === body.id
+            ? 'rgba(0, 243, 255, 0.65)'
+            : 'rgba(130, 180, 255, 0.2)';
+          ctx.lineWidth = state.selectedBodyId === body.id ? 1.8 : 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Posición actual del astro
+        const angle = body.orbitRadius === 0 ? 0 : state.simTime * body.orbitSpeed;
+        const px = cx + Math.cos(angle) * rOrbit;
+        const py = cy + Math.sin(angle) * rOrbit * 0.85;
+        const rPlanet = Math.max(3.5, body.radiusVis * Math.pow(z, 0.72));
+
+        state.planetPositions[body.id] = { x: px, y: py, r: Math.max(16, rPlanet + 8) };
+
+        // Corona solar especial para el Sol
+        if (body.id === 'sol') {
+          const sunGlow = ctx.createRadialGradient(px, py, rPlanet * 0.4, px, py, rPlanet * 2.8);
+          sunGlow.addColorStop(0, 'rgba(255, 230, 120, 0.95)');
+          sunGlow.addColorStop(0.4, 'rgba(255, 140, 0, 0.45)');
+          sunGlow.addColorStop(1, 'rgba(255, 80, 0, 0)');
+          ctx.fillStyle = sunGlow;
+          ctx.beginPath();
+          ctx.arc(px, py, rPlanet * 2.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Anillos de Saturno (mitad trasera)
+        if (body.hasRings) {
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(-0.35);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rPlanet * 2.25, rPlanet * 0.65, 0, Math.PI, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(235, 205, 140, 0.65)';
+          ctx.lineWidth = Math.max(2, rPlanet * 0.35);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Esfera del planeta con sombreado 3D respecto al Sol
+        const lightAngle = body.id === 'sol' ? 0 : Math.atan2(cy - py, cx - px);
+        const gx = px + Math.cos(lightAngle) * (rPlanet * 0.35);
+        const gy = py + Math.sin(lightAngle) * (rPlanet * 0.35);
+
+        const pGrad = ctx.createRadialGradient(gx, gy, rPlanet * 0.1, px, py, rPlanet);
+        pGrad.addColorStop(0, body.color);
+        pGrad.addColorStop(0.75, body.color2);
+        pGrad.addColorStop(1, body.id === 'sol' ? '#ff6600' : '#050814');
+
+        ctx.fillStyle = pGrad;
+        ctx.beginPath();
+        ctx.arc(px, py, rPlanet, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Anillos de Saturno (mitad delantera)
+        if (body.hasRings) {
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(-0.35);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rPlanet * 2.25, rPlanet * 0.65, 0, 0, Math.PI);
+          ctx.strokeStyle = 'rgba(245, 220, 160, 0.8)';
+          ctx.lineWidth = Math.max(2, rPlanet * 0.35);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Retícula de selección si está enfocado
+        if (state.selectedBodyId === body.id) {
+          ctx.strokeStyle = '#00f3ff';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(px, py, rPlanet + 7, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // Etiqueta del nombre del planeta
+        if (state.showLabels) {
+          ctx.font = state.selectedBodyId === body.id ? 'bold 12px Segoe UI, sans-serif' : '600 11px Segoe UI, sans-serif';
+          ctx.fillStyle = state.selectedBodyId === body.id ? '#00f3ff' : '#d8ebff';
+          ctx.textAlign = 'center';
+          ctx.fillText(body.name, px, py + rPlanet + 14);
+        }
+      }
+    }
+
+    // Bucle principal de animación
+    let lastTimestamp = performance.now();
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTimestamp) / 1000);
+      lastTimestamp = now;
+
+      drawStarfield(now * 0.05);
+
+      if (state.mode === 'galaxy') {
+        state.camera.x += (state.camera.targetX - state.camera.x) * 0.1;
+        state.camera.y += (state.camera.targetY - state.camera.y) * 0.1;
+        state.camera.zoom += (state.camera.targetZoom - state.camera.zoom) * 0.1;
+        drawMilkyWay(dt);
+      } else {
+        drawSolarSystem(dt);
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    /* ==========================================================================
+       5. INTERACCIÓN CON RATÓN Y PANTALLA TÁCTIL (PAN, ZOOM Y CLICS)
+       ========================================================================== */
+    let isDragging = false;
+    let dragMoved = false;
+    let dragStartX = 0, dragStartY = 0;
+
+    canvas.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (Math.hypot(dx, dy) > 5) {
+        dragMoved = true;
+        // Si el usuario arrastra manualmente, soltar el seguimiento automático de planeta
+        if (state.mode === 'solar' && state.selectedBodyId && state.selectedBodyId !== 'sol') {
+          state.selectedBodyId = null;
+          updatePlanetChipsUI();
+        }
+      }
+      state.camera.targetX += dx;
+      state.camera.targetY += dy;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (isDragging && !dragMoved) {
+        handleCanvasClick(e.clientX, e.clientY);
+      }
+      isDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.14 : 0.88;
+      state.camera.targetZoom = Math.min(3.6, Math.max(0.45, state.camera.targetZoom * factor));
+    }, { passive: false });
+
+    function handleCanvasClick(x, y) {
+      if (state.mode === 'galaxy') {
+        for (const node of GALAXY_NODES) {
+          if (Math.hypot(x - node._screenX, y - node._screenY) < 28) {
+            SoundFX.click();
+            selectGalaxyNode(node);
+            return;
+          }
+        }
+      } else if (state.mode === 'solar') {
+        // Buscar planeta más cercano al clic
+        let closest = null;
+        let minDist = Infinity;
+        for (const body of CELESTIAL_BODIES) {
+          const pos = state.planetPositions[body.id];
+          if (!pos) continue;
+          const d = Math.hypot(x - pos.x, y - pos.y);
+          if (d <= pos.r && d < minDist) {
+            minDist = d;
+            closest = body;
+          }
+        }
+        if (closest) {
+          SoundFX.warp();
+          openPlanetSheet(closest.id);
+        }
+      }
+    }
+
+    /* ==========================================================================
+       6. CONTROLADORES DE INTERFAZ Y NAVEGACIÓN ENTRE MODOS
+       ========================================================================== */
+    function switchMode(newMode) {
+      state.mode = newMode;
+      SoundFX.click();
+
+      document.querySelectorAll('.nav-modes .btn-hud[data-mode]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === newMode);
+      });
+
+      const galPanel = document.getElementById('galaxyInfoPanel');
+      const solarCtrl = document.getElementById('solarControls');
+      const planetSheet = document.getElementById('planetSheet');
+      const missionsModal = document.getElementById('missionsModal');
+
+      galPanel.style.display = newMode === 'galaxy' ? 'block' : 'none';
+      solarCtrl.classList.toggle('visible', newMode === 'solar');
+      missionsModal.classList.toggle('visible', newMode === 'missions');
+
+      if (newMode !== 'solar') {
+        planetSheet.classList.remove('visible');
+      }
+
+      if (newMode === 'galaxy') {
+        state.camera.targetX = 0;
+        state.camera.targetY = 0;
+        state.camera.targetZoom = 1;
+      } else if (newMode === 'solar') {
+        state.camera.targetX = 0;
+        state.camera.targetY = 0;
+        state.camera.targetZoom = width < 640 ? 0.65 : 1;
+      }
+    }
+
+    function selectGalaxyNode(node) {
+      state.selectedGalaxyNode = node;
+      document.getElementById('galNodeTag').textContent = node.tag;
+      document.getElementById('galNodeTitle').textContent = node.name;
+      document.getElementById('galNodeDesc').innerHTML = node.desc;
+      const statsEl = document.getElementById('galNodeStats');
+      statsEl.innerHTML = node.stats.map(s => `
+        <div class="stat-row"><span>${s.label}</span><strong>${s.val}</strong></div>
+      `).join('');
+    }
+
+    function openPlanetSheet(bodyId) {
+      const body = CELESTIAL_BODIES.find(b => b.id === bodyId);
+      if (!body) return;
+
+      state.selectedBodyId = body.id;
+      if (body.id === 'sol') {
+        state.camera.targetX = 0;
+        state.camera.targetY = 0;
+        state.camera.targetZoom = 1.35;
+      } else {
+        state.camera.targetZoom = Math.max(1.35, state.camera.targetZoom);
+      }
+
+      updatePlanetChipsUI();
+
+      const orb = document.getElementById('sheetOrb');
+      orb.style.background = `radial-gradient(circle at 30% 30%, ${body.color}, ${body.color2})`;
+
+      document.getElementById('sheetName').textContent = body.name;
+      document.getElementById('sheetType').textContent = body.type;
+      document.getElementById('sheetDesc').textContent = body.desc;
+      document.getElementById('sheetDiameter').textContent = body.diameter;
+      document.getElementById('sheetDistance').textContent = body.distance;
+      document.getElementById('sheetRotation').textContent = body.rotation;
+      document.getElementById('sheetOrbit').textContent = body.orbit;
+      document.getElementById('sheetTemp').textContent = body.temp;
+      document.getElementById('sheetGravity').textContent = body.gravity;
+      document.getElementById('sheetMoons').textContent = body.moons;
+      document.getElementById('sheetAtm').textContent = body.atm;
+      document.getElementById('sheetFact').textContent = body.fact;
+
+      const btnScan = document.getElementById('btnScanPlanet');
+      if (state.scannedIds.has(body.id)) {
+        btnScan.disabled = true;
+        btnScan.textContent = '✓ Astro Registrado en Bitácora';
+      } else {
+        btnScan.disabled = false;
+        btnScan.textContent = `📡 Escanear ${body.name} (+50 XP)`;
+      }
+
+      document.getElementById('planetSheet').classList.add('visible');
+    }
+
+    function buildPlanetChips() {
+      const bar = document.getElementById('planetChipBar');
+      bar.innerHTML = CELESTIAL_BODIES.map(b => `
+        <button class="planet-chip" data-body="${b.id}">
+          <span class="chip-dot" style="background:${b.color};"></span>
+          ${b.name}
+        </button>
+      `).join('');
+
+      bar.querySelectorAll('.planet-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          SoundFX.warp();
+          openPlanetSheet(chip.dataset.body);
+        });
+      });
+    }
+
+    function updatePlanetChipsUI() {
+      document.querySelectorAll('.planet-chip').forEach(chip => {
+        const id = chip.dataset.body;
+        chip.classList.toggle('selected', id === state.selectedBodyId);
+        chip.classList.toggle('scanned', state.scannedIds.has(id));
+      });
+      document.getElementById('scannedCountBadge').textContent = state.scannedIds.size;
+    }
+
+    /* ==========================================================================
+       7. MISIONES DE RECONOCIMIENTO (QUIZ) Y LABORATORIO COMPARADOR
+       ========================================================================== */
+    function renderQuizQuestion() {
+      const qObj = QUIZ_QUESTIONS[state.currentQuizIdx];
+      document.getElementById('quizCounter').textContent = `SEÑAL ${state.currentQuizIdx + 1} DE ${QUIZ_QUESTIONS.length}`;
+      document.getElementById('quizScore').textContent = `ACIERTOS: ${state.quizScore}`;
+      document.getElementById('quizQuestionText').textContent = qObj.q;
+
+      const fb = document.getElementById('quizFeedback');
+      fb.style.display = 'none';
+      document.getElementById('btnNextQuestion').style.display = 'none';
+
+      const grid = document.getElementById('quizOptionsGrid');
+      grid.innerHTML = qObj.opts.map((opt, idx) => `
+        <button class="quiz-opt" data-idx="${idx}">${opt}</button>
+      `).join('');
+
+      grid.querySelectorAll('.quiz-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const chosen = Number(btn.dataset.idx);
+          const allBtns = grid.querySelectorAll('.quiz-opt');
+          allBtns.forEach(b => b.disabled = true);
+
+          if (chosen === qObj.ans) {
+            btn.classList.add('correct');
+            SoundFX.success();
+            fb.style.background = 'rgba(0, 255, 136, 0.16)';
+            fb.style.border = '1px solid var(--green)';
+            fb.innerHTML = `<strong>✅ ¡Transmisión Verificada!</strong> ${qObj.exp}`;
+            if (!state.quizAnswered.has(state.currentQuizIdx)) {
+              state.quizAnswered.add(state.currentQuizIdx);
+              state.quizScore++;
+              addXP(60, 'Misión de reconocimiento superada');
+            }
+          } else {
+            btn.classList.add('wrong');
+            allBtns[qObj.ans].classList.add('correct');
+            SoundFX.error();
+            fb.style.background = 'rgba(255, 51, 85, 0.16)';
+            fb.style.border = '1px solid var(--red)';
+            fb.innerHTML = `<strong>⚠️ Lectura Incorrecta.</strong> ${qObj.exp}`;
+          }
+
+          document.getElementById('quizScore').textContent = `ACIERTOS: ${state.quizScore}`;
+          fb.style.display = 'block';
+          const nextBtn = document.getElementById('btnNextQuestion');
+          nextBtn.style.display = 'inline-flex';
+          nextBtn.textContent = state.currentQuizIdx < QUIZ_QUESTIONS.length - 1
+            ? 'Siguiente Señal ➔'
+            : 'Reiniciar Radar de Misiones ↻';
+        });
+      });
+    }
+
+    function initComparator() {
+      const selA = document.getElementById('compSelectA');
+      const selB = document.getElementById('compSelectB');
+      const planetsOnly = CELESTIAL_BODIES.filter(b => b.id !== 'sol');
+
+      const optionsHtml = planetsOnly.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      selA.innerHTML = optionsHtml;
+      selB.innerHTML = optionsHtml;
+      selA.value = 'tierra';
+      selB.value = 'jupiter';
+
+      selA.addEventListener('change', updateComparator);
+      selB.addEventListener('change', updateComparator);
+      document.getElementById('userMassInput').addEventListener('input', updateWeightCalculator);
+
+      updateComparator();
+      updateWeightCalculator();
+    }
+
+    function updateComparator() {
+      const pA = CELESTIAL_BODIES.find(b => b.id === document.getElementById('compSelectA').value);
+      const pB = CELESTIAL_BODIES.find(b => b.id === document.getElementById('compSelectB').value);
+      if (!pA || !pB) return;
+
+      const maxD = Math.max(pA.realDiameterKm, pB.realDiameterKm);
+      const sizeA = Math.max(14, (pA.realDiameterKm / maxD) * 95);
+      const sizeB = Math.max(14, (pB.realDiameterKm / maxD) * 95);
+
+      const renderCard = (p, pxSize) => `
+        <h3 style="color:var(--cyan); font-size:1.15rem;">${p.name}</h3>
+        <span style="font-size:0.75rem; color:var(--text-dim);">${p.type}</span>
+        <div class="scale-visualizer">
+          <div style="width:${pxSize}px; height:${pxSize}px; border-radius:50%; background:radial-gradient(circle at 30% 30%, ${p.color}, ${p.color2}); box-shadow: 0 0 15px rgba(255,255,255,0.2);"></div>
+        </div>
+        <div class="stat-list" style="text-align:left; margin-bottom:0;">
+          <div class="stat-row"><span>Diámetro:</span><strong>${p.diameter}</strong></div>
+          <div class="stat-row"><span>Gravedad:</span><strong>${p.gravity}</strong></div>
+          <div class="stat-row"><span>Temp. Media:</span><strong>${p.temp}</strong></div>
+          <div class="stat-row"><span>Año orbital:</span><strong>${p.orbit}</strong></div>
+        </div>
+      `;
+
+      document.getElementById('compCardA').innerHTML = renderCard(pA, sizeA);
+      document.getElementById('compCardB').innerHTML = renderCard(pB, sizeB);
+    }
+
+    function updateWeightCalculator() {
+      const mass = Math.max(1, parseFloat(document.getElementById('userMassInput').value) || 55);
+      const planetsOnly = CELESTIAL_BODIES.filter(b => b.id !== 'sol');
+      const container = document.getElementById('weightResults');
+
+      container.innerHTML = planetsOnly.map(p => {
+        const apparentKg = (mass * p.gravityVal).toFixed(1);
+        return `
+          <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px; text-align:center;">
+            <div style="font-size:0.75rem; color:var(--text-dim);">${p.name}</div>
+            <div style="font-family:var(--font-mono); font-weight:800; color:#fff; font-size:0.95rem;">${apparentKg} kgf</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderBadges() {
+      const grid = document.getElementById('badgesGrid');
+      const rockCount = ['mercurio', 'venus', 'tierra', 'marte'].filter(id => state.scannedIds.has(id)).length;
+      const giantCount = ['jupiter', 'saturno', 'urano', 'neptuno'].filter(id => state.scannedIds.has(id)).length;
+
+      const badges = [
+        {
+          icon: '🪨',
+          title: 'Geólogo Planetario',
+          desc: `Escanea los 4 planetas rocosos (${rockCount}/4)`,
+          unlocked: rockCount === 4
+        },
+        {
+          icon: '🌀',
+          title: 'Cazador de Gigantes',
+          desc: `Escanea los 4 gigantes exteriores (${giantCount}/4)`,
+          unlocked: giantCount === 4
+        },
+        {
+          icon: '☀️',
+          title: 'Físico Estelar',
+          desc: 'Escanea nuestra estrella, el Sol',
+          unlocked: state.scannedIds.has('sol')
+        },
+        {
+          icon: '🏆',
+          title: 'Maestro de la Vía Láctea',
+          desc: `Completa todo el Sistema Solar (${state.scannedIds.size}/9)`,
+          unlocked: state.scannedIds.size === 9
+        }
+      ];
+
+      grid.innerHTML = badges.map(b => `
+        <div style="background:${b.unlocked ? 'rgba(0,255,136,0.12)' : 'rgba(255,255,255,0.03)'}; border:1px solid ${b.unlocked ? 'var(--green)' : 'rgba(255,255,255,0.15)'}; border-radius:12px; padding:14px; opacity:${b.unlocked ? 1 : 0.6};">
+          <div style="font-size:1.8rem; margin-bottom:6px;">${b.icon}</div>
+          <strong style="color:${b.unlocked ? 'var(--green)' : '#fff'}; display:block; margin-bottom:4px;">${b.title}</strong>
+          <span style="font-size:0.8rem; color:var(--text-dim);">${b.desc}</span>
+        </div>
+      `).join('');
+    }
+
+    /* ==========================================================================
+       8. EVENTOS DE BOTONES E INICIALIZACIÓN DE LA APLICACIÓN
+       ========================================================================== */
+    document.getElementById('btnStartMission').addEventListener('click', () => {
+      SoundFX.warp();
+      document.getElementById('startScreen').classList.add('hidden');
+      showToast('🚀 Bienvenido a bordo, Cadete. Selecciona un nodo en la Vía Láctea.');
+    });
+
+    document.querySelectorAll('.nav-modes .btn-hud[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+    });
+
+    document.getElementById('btnZoomToSolar').addEventListener('click', () => {
+      SoundFX.warp();
+      switchMode('solar');
+      showToast('🔭 Entrando al Sistema Solar (Brazo de Orión)');
+    });
+
+    document.getElementById('btnToggleAudio').addEventListener('click', (e) => {
+      const isMuted = SoundFX.toggleMute();
+      e.target.textContent = isMuted ? '🔇 Silencio' : '🔊 Audio';
+    });
+
+    document.getElementById('btnCloseSheet').addEventListener('click', () => {
+      SoundFX.click();
+      document.getElementById('planetSheet').classList.remove('visible');
+      state.selectedBodyId = null;
+      updatePlanetChipsUI();
+    });
+
+    document.getElementById('btnScanPlanet').addEventListener('click', () => {
+      if (!state.selectedBodyId || state.scannedIds.has(state.selectedBodyId)) return;
+      const body = CELESTIAL_BODIES.find(b => b.id === state.selectedBodyId);
+      state.scannedIds.add(body.id);
+      SoundFX.scan();
+      addXP(50, `${body.name} escaneado`);
+      openPlanetSheet(body.id); // Actualiza estado del botón
+    });
+
+    // Controles de simulación orbital
+    document.getElementById('btnPlayPause').addEventListener('click', (e) => {
+      SoundFX.click();
+      state.simRunning = !state.simRunning;
+      e.target.textContent = state.simRunning ? '⏸ Pausar' : '▶ Reanudar';
+    });
+
+    document.querySelectorAll('#solarControls .btn-hud[data-speed]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        SoundFX.click();
+        state.simSpeed = parseFloat(btn.dataset.speed);
+        document.querySelectorAll('#solarControls .btn-hud[data-speed]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    document.getElementById('btnToggleOrbits').addEventListener('click', (e) => {
+      SoundFX.click();
+      state.showOrbits = !state.showOrbits;
+      e.target.classList.toggle('active', state.showOrbits);
+    });
+
+    document.getElementById('btnToggleLabels').addEventListener('click', (e) => {
+      SoundFX.click();
+      state.showLabels = !state.showLabels;
+      e.target.classList.toggle('active', state.showLabels);
+    });
+
+    document.getElementById('btnResetCamera').addEventListener('click', () => {
+      SoundFX.click();
+      state.selectedBodyId = null;
+      state.camera.targetX = 0;
+      state.camera.targetY = 0;
+      state.camera.targetZoom = width < 640 ? 0.65 : 1;
+      updatePlanetChipsUI();
+    });
+
+    // Navegación dentro del modal de Misiones & Laboratorio
+    document.getElementById('btnCloseMissions').addEventListener('click', () => switchMode('solar'));
+
+    document.getElementById('tabQuizBtn').addEventListener('click', () => {
+      SoundFX.click();
+      document.getElementById('tabQuizBtn').classList.add('active');
+      document.getElementById('tabCompBtn').classList.remove('active');
+      document.getElementById('tabBadgesBtn').classList.remove('active');
+      document.getElementById('quizSection').style.display = 'block';
+      document.getElementById('comparatorSection').style.display = 'none';
+      document.getElementById('badgesSection').style.display = 'none';
+    });
+
+    document.getElementById('tabCompBtn').addEventListener('click', () => {
+      SoundFX.click();
+      document.getElementById('tabCompBtn').classList.add('active');
+      document.getElementById('tabQuizBtn').classList.remove('active');
+      document.getElementById('tabBadgesBtn').classList.remove('active');
+      document.getElementById('quizSection').style.display = 'none';
+      document.getElementById('comparatorSection').style.display = 'block';
+      document.getElementById('badgesSection').style.display = 'none';
+    });
+
+    document.getElementById('tabBadgesBtn').addEventListener('click', () => {
+      SoundFX.click();
+      document.getElementById('tabBadgesBtn').classList.add('active');
+      document.getElementById('tabQuizBtn').classList.remove('active');
+      document.getElementById('tabCompBtn').classList.remove('active');
+      document.getElementById('quizSection').style.display = 'none';
+      document.getElementById('comparatorSection').style.display = 'none';
+      document.getElementById('badgesSection').style.display = 'block';
+      renderBadges();
+    });
+
+    document.getElementById('btnNextQuestion').addEventListener('click', () => {
+      SoundFX.click();
+      if (state.currentQuizIdx < QUIZ_QUESTIONS.length - 1) {
+        state.currentQuizIdx++;
+      } else {
+        state.currentQuizIdx = 0;
+      }
+      renderQuizQuestion();
+    });
+
+    // Arranque inicial
+    window.onload = () => {
+      resizeCanvas();
+      initProceduralSpace();
+      buildPlanetChips();
+      renderQuizQuestion();
+      initComparator();
+      renderBadges();
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
